@@ -1,0 +1,68 @@
+esphome:
+  name: esphome-web-aaaaaa
+  friendly_name: Deej Volume Control
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+ota:
+
+web_server:
+  port: 80
+  ota: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+sensor:    
+  - platform: adc
+    pin: GPIO35
+    id: Input_0
+    attenuation: auto
+    update_interval: 20ms
+    filters: 
+      # Average out some noise
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+      # DC offset to get value beteen 0 -> 3 (with some overlap on both sides for deadzones)
+      - offset: -0.1
+      # Multiply to get a value between 0 -> 1023 (as required by Deej)
+      - multiply: 341
+      # Ignore small differences (<0.5%) - Deej will also do this so it isn't really needed, but it cleans up the ESPHome logs a bit
+      - delta: 5.0
+      # Clamp to between 0 and 1023. Values outside of this range are considered deadzones
+      - clamp:
+          min_value: 0
+          max_value: 1023
+      # Remove decimals
+      - round: 0
+
+  - platform: adc
+    pin: GPIO34
+    id: Input_1
+    attenuation: auto
+    update_interval: 20ms
+    filters: 
+      # Average out some noise
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+      # DC offset to get value beteen 0 -> 3 (with some overlap on both sides for deadzones)
+      - offset: -0.1
+      # Multiply to get a value between 0 -> 1023 (as required by Deej)
+      - multiply: 341
+      # Ignore small differences (<0.5%) - Deej will also do this so it isn't really needed, but it cleans up the ESPHome logs a bit
+      - delta: 5.0
+      # Clamp to between 0 and 1023. Values outside of this range are considered deadzones
+      - clamp:
+          min_value: 0
+          max_value: 1023
+      # Remove decimals
+      - round: 0

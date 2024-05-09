@@ -25,6 +25,10 @@ type CanonicalConfig struct {
 
 	InvertSliders bool
 
+	UseESPHome         bool
+	ESPHomeIpAddr      string
+	ESPHomeSliderNames []string
+
 	NoiseReductionLevel string
 
 	logger             *zap.SugaredLogger
@@ -53,6 +57,9 @@ const (
 	configKeyCOMPort             = "com_port"
 	configKeyBaudRate            = "baud_rate"
 	configKeyNoiseReductionLevel = "noise_reduction"
+	configKeyUseESPHome          = "use_esphome"
+	configKeyESPHomeMapping      = "esphome_mapping"
+	configKeyESPHomeIp           = "esphome_ip"
 
 	defaultCOMPort  = "COM4"
 	defaultBaudRate = 9600
@@ -146,7 +153,9 @@ func (cc *CanonicalConfig) Load() error {
 	cc.logger.Infow("Config values",
 		"sliderMapping", cc.SliderMapping,
 		"connectionInfo", cc.ConnectionInfo,
-		"invertSliders", cc.InvertSliders)
+		"invertSliders", cc.InvertSliders,
+		"useESPHome", cc.UseESPHome,
+		"esphomeMapping", cc.ESPHomeSliderNames)
 
 	return nil
 }
@@ -237,6 +246,9 @@ func (cc *CanonicalConfig) populateFromVipers() error {
 	}
 
 	cc.InvertSliders = cc.userConfig.GetBool(configKeyInvertSliders)
+	cc.UseESPHome = cc.userConfig.GetBool(configKeyUseESPHome)
+	cc.ESPHomeIpAddr = cc.userConfig.GetString(configKeyESPHomeIp)
+	cc.ESPHomeSliderNames = cc.userConfig.GetStringSlice(configKeyESPHomeMapping)
 	cc.NoiseReductionLevel = cc.userConfig.GetString(configKeyNoiseReductionLevel)
 
 	cc.logger.Debug("Populated config fields from vipers")

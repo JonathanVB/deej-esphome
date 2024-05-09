@@ -18,13 +18,19 @@ const (
 	envNoTray = "DEEJ_NO_TRAY_ICON"
 )
 
+type SliderHardwareInterface interface {
+	Start() error
+	Stop()
+	SubscribeToSliderMoveEvents() chan SliderMoveEvent
+}
+
 // Deej is the main entity managing access to all sub-components
 type Deej struct {
-	logger   *zap.SugaredLogger
-	notifier Notifier
-	config   *CanonicalConfig
-	serial   *SerialIO
-	sessions *sessionMap
+	logger            *zap.SugaredLogger
+	notifier          Notifier
+	config            *CanonicalConfig
+	sliderEventSource SliderHardwareInterface
+	sessions          *sessionMap
 
 	stopChannel chan bool
 	version     string
@@ -55,14 +61,6 @@ func NewDeej(logger *zap.SugaredLogger, verbose bool) (*Deej, error) {
 		verbose:     verbose,
 	}
 
-	serial, err := NewSerialIO(d, logger)
-	if err != nil {
-		logger.Errorw("Failed to create SerialIO", "error", err)
-		return nil, fmt.Errorf("create new SerialIO: %w", err)
-	}
-
-	d.serial = serial
-
 	sessionFinder, err := newSessionFinder(logger)
 	if err != nil {
 		logger.Errorw("Failed to create SessionFinder", "error", err)
@@ -90,6 +88,23 @@ func (d *Deej) Initialize() error {
 	if err := d.config.Load(); err != nil {
 		d.logger.Errorw("Failed to load config during initialization", "error", err)
 		return fmt.Errorf("load config during init: %w", err)
+	}
+
+	// initialize the slider event source interface
+	if d.config.UseESPHome {
+		esphome, err := NewESPHome(d, d.logger)
+		if err != nil {
+			d.logger.Errorw("Failed to create ESPHome", "error", err)
+			return fmt.Errorf("create new ESPHome: %w", err)
+		}
+		d.sliderEventSource = esphome
+	} else {
+		serial, err := NewSerialIO(d, d.logger)
+		if err != nil {
+			d.logger.Errorw("Failed to create SerialIO", "error", err)
+			return fmt.Errorf("create new SerialIO: %w", err)
+		}
+		d.sliderEventSource = serial
 	}
 
 	// initialize the session map
@@ -143,16 +158,16 @@ func (d *Deej) run() {
 
 	// connect to the arduino for the first time
 	go func() {
-		if err := d.serial.Start(); err != nil {
-			d.logger.Warnw("Failed to start first-time serial connection", "error", err)
+		if err := d.sliderEventSource.Start(); err != nil {
+			d.logger.Warnw("Failed to start first-time slider hardware connection", "error", err)
 
 			// If the port is busy, that's because something else is connected - notify and quit
 			if errors.Is(err, os.ErrPermission) {
-				d.logger.Warnw("Serial port seems busy, notifying user and closing",
+				d.logger.Warnw("Slider hardware port seems busy, notifying user and closing",
 					"comPort", d.config.ConnectionInfo.COMPort)
 
 				d.notifier.Notify(fmt.Sprintf("Can't connect to %s!", d.config.ConnectionInfo.COMPort),
-					"This serial port is busy, make sure to close any serial monitor or other deej instance.")
+					"This Slider hardware port is busy, make sure to close any Slider hardware monitor or other deej instance.")
 
 				d.signalStop()
 
@@ -162,7 +177,7 @@ func (d *Deej) run() {
 					"comPort", d.config.ConnectionInfo.COMPort)
 
 				d.notifier.Notify(fmt.Sprintf("Can't connect to %s!", d.config.ConnectionInfo.COMPort),
-					"This serial port doesn't exist, check your configuration and make sure it's set correctly.")
+					"This Slider hardware port doesn't exist, check your configuration and make sure it's set correctly.")
 
 				d.signalStop()
 			}
@@ -191,7 +206,7 @@ func (d *Deej) stop() error {
 	d.logger.Info("Stopping")
 
 	d.config.StopWatchingConfigFile()
-	d.serial.Stop()
+	d.sliderEventSource.Stop()
 
 	// release the session map
 	if err := d.sessions.release(); err != nil {
