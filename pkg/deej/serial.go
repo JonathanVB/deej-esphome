@@ -74,26 +74,18 @@ func (sio *SerialIO) Start() error {
 		return errors.New("serial: connection already active")
 	}
 
-	// set minimum read size according to platform (0 for windows, 1 for linux)
-	// this prevents a rare bug on windows where serial reads get congested,
-	// resulting in significant lag
-	minimumReadSize := 0
-	if util.Linux() {
-		minimumReadSize = 1
-	}
-
 	sio.connOptions = serial.OpenOptions{
 		PortName:        sio.deej.config.ConnectionInfo.COMPort,
 		BaudRate:        uint(sio.deej.config.ConnectionInfo.BaudRate),
 		DataBits:        8,
 		StopBits:        1,
-		MinimumReadSize: uint(minimumReadSize),
+		MinimumReadSize: 1,
 	}
 
 	sio.logger.Debugw("Attempting serial connection",
 		"comPort", sio.connOptions.PortName,
 		"baudRate", sio.connOptions.BaudRate,
-		"minReadSize", minimumReadSize)
+		"minReadSize", sio.connOptions.MinimumReadSize)
 
 	var err error
 	sio.conn, err = serial.Open(sio.connOptions)
@@ -202,6 +194,7 @@ func (sio *SerialIO) readLine(logger *zap.SugaredLogger, reader *bufio.Reader) c
 	ch := make(chan string)
 
 	go func() {
+		firstLine := true
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
@@ -216,6 +209,11 @@ func (sio *SerialIO) readLine(logger *zap.SugaredLogger, reader *bufio.Reader) c
 
 			if sio.deej.Verbose() {
 				logger.Debugw("Read new line", "line", line)
+			}
+
+			if firstLine {
+				firstLine = false
+				continue
 			}
 
 			// deliver the line to the channel

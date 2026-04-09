@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"runtime"
 
+	"github.com/go-ole/go-ole"
 	"github.com/omriharel/deej/pkg/deej"
 )
 
@@ -16,6 +18,10 @@ var (
 )
 
 func init() {
+	runtime.LockOSThread()
+	ole.CoInitialize(0)
+	defer ole.CoUninitialize()
+	
 	flag.BoolVar(&verbose, "verbose", false, "show verbose logs (useful for debugging serial)")
 	flag.BoolVar(&verbose, "v", false, "shorthand for --verbose")
 	flag.Parse()
